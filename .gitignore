@@ -3,3 +3,4 @@ build/
 *.pcap
 flow/
 bench.out
+perf.data*

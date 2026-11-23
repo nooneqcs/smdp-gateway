@@ -1,20 +1,27 @@
 #include "delta.h"
 #include "vint.h"
 #include <cstring>
+#include <smmintrin.h>   // SSE4.1
 
 namespace smdp {
 
 static inline int64_t zz(uint8_t b){ return (int64_t(b) >> 1) ^ -(int64_t(b) & 1); }
 
 int DecodeTradeSummary(const DomainRef& d, TradeSummary& out) {
-    // 快路径：4 个 1 字节 VInt，读 4B 一次
+    // SIMD：4 个 1 字节 VInt（读 4B，向量化 zigzag）
     if (d.FieldSize >= 4) {
-        uint32_t w; std::memcpy(&w, d.Body, 4);
-        if ((w & 0x80808080u) == 0) {
-            out.LastPriceOffset    = zz((uint8_t)(w));
-            out.VolumeChange       = zz((uint8_t)(w >> 8));
-            out.TurnoverOffset     = zz((uint8_t)(w >> 16));
-            out.OpenInterestChange = zz((uint8_t)(w >> 24));
+        __m128i b = _mm_cvtsi32_si128(*reinterpret_cast<const int32_t*>(d.Body));
+        if (_mm_movemask_epi8(b) == 0) {              // 4 字节都无 bit7
+            __m128i x   = _mm_cvtepu8_epi32(b);       // 4 × int32
+            __m128i one = _mm_set1_epi32(1);
+            __m128i z   = _mm_xor_si128(_mm_srli_epi32(x, 1),
+                                        _mm_sub_epi32(_mm_setzero_si128(), _mm_and_si128(x, one)));
+            alignas(16) int32_t r[4];
+            _mm_store_si128(reinterpret_cast<__m128i*>(r), z);
+            out.LastPriceOffset    = r[0];
+            out.VolumeChange       = r[1];
+            out.TurnoverOffset     = r[2];
+            out.OpenInterestChange = r[3];
             return 4;
         }
     }
