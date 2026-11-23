@@ -1,4 +1,5 @@
 #include "market2.h"
+#include "mirp.h"
 #include <cstdio>
 #include <cstring>
 #include <cstdint>
@@ -8,7 +9,6 @@ using namespace smdp;
 
 static double now_ns(){ timespec ts; clock_gettime(CLOCK_MONOTONIC,&ts); return ts.tv_sec*1e9+ts.tv_nsec; }
 
-// 一条增量报文：24B头 + [0x0003][0x1001][0x1001][0x1002]
 static std::vector<uint8_t> build_packet() {
     std::vector<uint8_t> p(24, 0);
     auto u16=[&](uint16_t v){ p.push_back(v&0xFF); p.push_back((v>>8)&0xFF); };
@@ -22,9 +22,9 @@ static std::vector<uint8_t> build_packet() {
     return p;
 }
 
-struct CountVisitor : DomainVisitor {
+struct CountVisitor {
     int n=0;
-    void OnDomain(const DomainRef&) override { ++n; }
+    inline void OnDomain(const DomainRef&) { ++n; }
 };
 static volatile long g_sink=0;
 
@@ -33,23 +33,22 @@ int main() {
     MirpHeader h;
     const size_t N = 5000000;
 
-    {   // 口径1：头 + 域遍历（不解）
+    {
         CountVisitor cv;
-        for(int i=0;i<100000;i++){ ParseMirpHeader(pkt.data(),pkt.size(),h); IterateDomains(pkt.data()+24,h.Length,cv); }
+        for(int i=0;i<100000;i++){ ParseMirpHeader(pkt.data(),pkt.size(),h); IterateDomainsT(pkt.data()+24,h.Length,cv); }
         double t0=now_ns();
-        for(size_t i=0;i<N;i++){ ParseMirpHeader(pkt.data(),pkt.size(),h); IterateDomains(pkt.data()+24,h.Length,cv); }
-        double t1=now_ns();
-        g_sink += cv.n;
-        printf("[frame only] %.2f ns/pkt  %.1f Mpps  (domains=%d)\n",(t1-t0)/N, N/(t1-t0)*1000.0, cv.n);
+        for(size_t i=0;i<N;i++){ ParseMirpHeader(pkt.data(),pkt.size(),h); IterateDomainsT(pkt.data()+24,h.Length,cv); }
+        double t1=now_ns(); g_sink += cv.n;
+        printf("[frame only] %.2f ns/pkt  %.1f Mpps\n",(t1-t0)/N, N/(t1-t0)*1000.0);
     }
-    {   // 口径2：头 + 域遍历 + 解码 + book 更新
+    {
         MarketStore store; MarketVisitor mv(store);
         uint8_t b1[112]={0}; double tick=5.0, codec=18000.0; int32_t ino=20;
         std::memcpy(b1+92,&tick,8); std::memcpy(b1+100,&codec,8); std::memcpy(b1+108,&ino,4);
         mv.OnDomain(DomainRef{0x0101,112,b1});
-        for(int i=0;i<100000;i++){ ParseMirpHeader(pkt.data(),pkt.size(),h); IterateDomains(pkt.data()+24,h.Length,mv); }
+        for(int i=0;i<100000;i++){ ParseMirpHeader(pkt.data(),pkt.size(),h); IterateDomainsT(pkt.data()+24,h.Length,mv); }
         double t0=now_ns();
-        for(size_t i=0;i<N;i++){ ParseMirpHeader(pkt.data(),pkt.size(),h); IterateDomains(pkt.data()+24,h.Length,mv); }
+        for(size_t i=0;i<N;i++){ ParseMirpHeader(pkt.data(),pkt.size(),h); IterateDomainsT(pkt.data()+24,h.Length,mv); }
         double t1=now_ns();
         printf("[full + book] %.2f ns/pkt  %.1f Mpps\n",(t1-t0)/N, N/(t1-t0)*1000.0);
     }

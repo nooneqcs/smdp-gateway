@@ -21,7 +21,7 @@ private:
     std::unordered_map<int64_t, ContractState> m_;
 };
 
-class MarketVisitor : public DomainVisitor {
+class MarketVisitor final : public DomainVisitor {
 public:
     explicit MarketVisitor(MarketStore& s) : store_(s) {}
     void OnDomain(const DomainRef& d) override;
