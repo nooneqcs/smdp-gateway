@@ -4,3 +4,9 @@ build/
 flow/
 bench.out
 perf.data*
+PROGRESS.md
+
+# 构建产物
+dpdk_mirp_v9
+dpdk_mirp_v10
+bench/vint/vint_mask10
