@@ -28,6 +28,7 @@ private:
 
 class MarketVisitor final : public DomainVisitor {
 public:
+    auto LastIno() const { return cur_ino_; }
     explicit MarketVisitor(MarketStore& s) : store_(s) {}
     void OnDomain(const DomainRef& d) override;
     int64_t Current() const { return cur_ino_; }
