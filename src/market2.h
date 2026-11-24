@@ -3,7 +3,7 @@
 #include "delta.h"
 #include "book.h"
 #include <cstdint>
-#include <unordered_map>
+#include <vector>
 
 namespace smdp {
 
@@ -15,13 +15,18 @@ struct ContractState {
 
 class MarketStore {
 public:
-    ContractState& Get(int64_t ino) { return m_[ino]; }
-    size_t Size() const { return m_.size(); }
+    // 直接按 InstrumentNo 索引（主题内合约编码通常连续 0..M-1）
+    ContractState& Get(int64_t ino) {
+        size_t i = (ino < 0) ? 0u : static_cast<size_t>(ino);
+        if (i >= table_.size()) table_.resize(i + 1);
+        return table_[i];
+    }
+    size_t Size() const { return table_.size(); }
 private:
-    std::unordered_map<int64_t, ContractState> m_;
+    std::vector<ContractState> table_;
 };
 
-class MarketVisitor final : public DomainVisitor {
+class MarketVisitor : public DomainVisitor {
 public:
     explicit MarketVisitor(MarketStore& s) : store_(s) {}
     void OnDomain(const DomainRef& d) override;
@@ -33,3 +38,4 @@ private:
 };
 
 } // namespace smdp
+
