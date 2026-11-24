@@ -23,13 +23,12 @@ void Book::LoadSnapshotLevel(const PriceBookLevel& lv) {
 }
 
 void Book::ApplyDelta(const PriceLevelDelta& ev, double codecPrice, double priceTick) {
-    Level* side = (ev.MDEntryType == '0') ? Bid : Ask;
-    int lvl = static_cast<int>(ev.PriceLevel);
-    if (lvl < 1 || lvl > kDepth) return;          // 超深度丢弃
-    int i = lvl - 1;
-    if (ev.EventType == '3') { side[i].Price = 0.0; side[i].Volume = 0; return; }
-    side[i].Price  = codecPrice + static_cast<double>(ev.PriceOffset) * priceTick;
-    side[i].Volume = ev.Volume;
+    Level* side = (ev.MDEntryType == '0') ? Bid : Ask;       // 方向
+    unsigned i = static_cast<unsigned>(ev.PriceLevel) - 1u;  // 档位
+    if (i >= static_cast<unsigned>(kDepth)) return;          // 超深度
+    const bool del = (ev.EventType == '3');                  // 删除用 cmov
+    side[i].Price  = del ? 0.0 : (codecPrice + static_cast<double>(ev.PriceOffset) * priceTick);
+    side[i].Volume = del ? int64_t(0) : ev.Volume;
 }
 
 void Book::Finalize() {
@@ -46,3 +45,4 @@ void Book::Dump() const {
 }
 
 } // namespace smdp
+
