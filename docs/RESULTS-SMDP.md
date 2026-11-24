@@ -107,3 +107,18 @@
 - rdtsc 对开销：单核 25.6 ns → 双核活跃 43.8 ns；入队数含约 ±18 ns 口径不确定性
 - 待优化：批量入队（每 burst 仅更新一次 head）、isolcpus/nohz_full 消尾延迟
 
+
+### SYNTH 合成流水线（进程内、热缓存、不含网卡）
+
+| 路径 | ns/msg | 吞吐 |
+|---|---:|---:|
+| 单条 push | 92–105 | 9.5–10.8 Mpps |
+| 批量 push（每 32 条一次 head） | 33 | 30 Mpps（3.2×） |
+
+### 结论
+
+- 批量入队只在 `nb >= 8` 突发时有效；570 pps（`nb≈1`）下 bulk free + 批量是负优化（口径B 176 → 324 ns）
+- v10 按 `nb >= 8` 自适应：突发走 prefetch + bulk free + 批量 push，稀疏走逐包
+- 热缓存 27.3 ns 折合 36 Mpps，远超真实行情速率，不再优化
+- p999 抖动（百 µs~ms）来自未隔离核的 OS 调度，生产需 `isolcpus` / `nohz_full`，非 demo 必需
+- rdtsc 对开销：单核 25.5 / 双核 43.8 ns；跨 run 数据只能看量级
