@@ -72,3 +72,63 @@ g++ -std=c++17 -O3 -march=native -flto -Isrc src/encode.cpp src/mirp.cpp src/dec
 
 个人学习用途。协议规范著作权归上海期货信息技术有限公司，本仓库不包含其文档原文。
 
+## P7 · DPDK 端到端联调与跨核分发
+
+### 链路拓扑
+
+```
+Windows 笔记本 (Realtek USB GbE, 192.168.99.2)
+   └─ 二层直连，dst MAC = 广播 ff:ff:ff:ff:ff:ff
+      └─ i210 (vfio-pci, 0000:01:00.0)
+         └─ dpdk_mirp_v8
+            ├─ lcore1：轮询收包 → 严格校验 → MIRP 解码 → book 合并
+            └─ SPSC 无锁环 → lcore2：消费并打时间戳
+```
+
+### 验证结果
+
+- 20000 条 40B MIRP 报单：`rx_total=20267`，解出 20000，入队/消费各 20000，**丢弃 0**
+- `topic=1001、Length=16、mlen=40` 与样例报文逐字节一致；`Bid1 / Volume` 正确更新
+
+### 延迟（i5-7400 单机、纯软件、不含网卡收包与 DMA）
+
+| 口径 | 测量内容 | p50 | p99 | p999 |
+|---|---|---:|---:|---:|
+| 冷缓存单包 | rx_burst 返回 → 处理完（~570 pps） | 74.1 ns | 144.4 ns | 442.8 ns |
+| 热缓存单条 | 同一 40B buffer 循环 1e7 次 | 27.3 ns | — | — |
+| 跨核入队 | 生产核 push 至 SPSC | 50.2 ns | 54.8 ns | — |
+| 跨核端到端 | t_prod → 消费核 pop | 177.2 ns | 198.2 ns | 13304.8 ns |
+
+### 口径说明（重要）
+
+- `rdtsc` 成对开销本机实测：单核 25.6 ns、双核活跃 43.8 ns，上表数值均已扣减
+- 热缓存 27.3 ns 与冷缓存 74.1 ns 之差 ≈ 47 ns，即**内存延迟**（mbuf 数据冷 miss + book 结构写 miss），不代表 ALU 解码成本
+- 入队 50.2 ns 是**跨核**口径，含 cache line 转移；不等同于同核入队（2.96 ns）
+- p999 13.3 µs 来自**未隔离核的 OS 调度抖动**，非代码缺陷
+
+### 关键实现
+
+- `ValidMirp`：TypeID / Flag / TopicID / Length 四项严格校验，消除混杂模式下的杂包误判
+- `MarketVisitor final` + `vector<ContractState>` 数组直接索引，无哈希查找
+- SPSC 环 head/tail 各自 64 字节对齐，acquire/release 语义
+- 每 burst 处理完统一 `rte_pktmbuf_free`
+
+### 复现
+
+```bash
+# 编译
+g++ -O2 -march=native -Isrc $(pkg-config --cflags libdpdk) \
+    dpdk_mirp_v8.cpp $(ls src/*.cpp | grep -v 'src/market\.cpp$') \
+    -o dpdk_mirp_v8 $(pkg-config --libs libdpdk)
+
+# 运行（需要两个 lcore）
+sudo ./dpdk_mirp_v8 -l 1,2 -a 0000:01:00.0 -- 20000
+```
+
+### 已知限制 / TODO
+
+- 发送端受 Windows Scapy 限制，仅 ~570 pps，**非系统吞吐上限**
+- 消费核未隔离（`isolcpus` / `nohz_full`），尾延迟 13 µs
+- 入队可批量优化（每 burst 仅更新一次 head），预期降到十几 ns
+- 目前用自造报文验证，尚未接入真实 SMDP 组播行情
+
