@@ -39,3 +39,4 @@ inline size_t DecodeVIntBatch(const uint8_t* data, size_t len, uint64_t* out, si
 }
 
 } // namespace smdp
+
