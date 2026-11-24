@@ -37,3 +37,4 @@ int DecodeTradeMarketData(const DomainRef& d, TradeMarketData& out) {
 }
 
 } // namespace smdp
+
