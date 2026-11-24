@@ -80,3 +80,20 @@
 - 两个坑：① Scapy 未指定 iface 会发到 Wi-Fi/虚拟网卡；② 混杂模式收杂包会被误判为 MIRP（topic=256），靠 ValidMirp 四项校验挡住
 - 已知噪音：笔记本 VPN/ICS 桥接会把 Wi-Fi 侧 IPv4 流量漏到有线口（无害）
 
+## P7 端到端延迟实测（2026-11-24）
+
+- 链路：Windows USB GbE (A0-CE-C8-E4-FC-74) → i210(vfio-pci) → DPDK 单核轮询
+- 报文：40B MIRP 报单（TopicID=1001，2 个域），共 20000 条，rx_total=20267（丢包 1.3%）
+- 发送速率：~570 pps（受 Windows Scapy sendp 上限限制，非系统极限）
+- rdtsc 成对开销：本机实测 25.6 ns（20 万次摊薄）
+- **口径A 纯解码**（ValidMirp + 域解码 + book 合并，单条，**冷缓存**）：
+  p50 74.1 / p90 114.1 / p99 144.4 / p999 442.8 ns
+- **口径B 处理段**（rx_burst 返回 → 整 burst 处理完 / nb，不含收包）：
+  p50 176.3 / p99 280.3 ns/包
+- 判读：570 pps 下包间隔 1.7ms，缓存全冷，74 ns 由内存延迟主导（报文数据 miss + book 结构写 miss），
+  **不代表 ALU 解码成本**；口径B−A ≈ 100 ns 为 mbuf free + ring 入队
+- 结论：功能链路（收包→校验→解码→book 更新）验证通过；性能数需热缓存微基准另行测定
+
+- 热缓存完整单条（-O2 -march=native，MarketVisitor 已加 final）：27.27 ns/条；
+  -O3 为 24.74 ns（仅参考，对外统一用 -O2）。域解码+合并 21.6~23.3 ns 为真实成本，非虚调用开销。
+

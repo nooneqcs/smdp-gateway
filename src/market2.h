@@ -26,7 +26,7 @@ private:
     std::vector<ContractState> table_;
 };
 
-class MarketVisitor : public DomainVisitor {
+class MarketVisitor final : public DomainVisitor {
 public:
     explicit MarketVisitor(MarketStore& s) : store_(s) {}
     void OnDomain(const DomainRef& d) override;
