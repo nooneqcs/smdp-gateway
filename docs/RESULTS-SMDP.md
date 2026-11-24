@@ -71,3 +71,12 @@
 - 非端到端（不含收包/组播/分发）。
 - 真实 MIRP 报文分布未知，B 为语义构造；整包 SIMD 未做（变长报文难向量化，投入产出低）。
 
+## P7 DPDK 端到端联调（2026-11-24）
+
+- 拓扑：Windows 笔记本 Realtek USB GbE (A0-CE-C8-E4-FC-74) ↔ i210 (vfio-pci, 0000:01:00.0)
+- 发包：Scapy sendp，**dst MAC 用广播 ff:ff:ff:ff:ff:ff**，源 192.168.99.2
+- 结果：40B 报单样例 count=10 → Linux `[first] topic=1001 Length=16 mlen=40`，`解出=10`
+- 结论：MIRP 头解析、域遍历、严格校验在真实二层链路上验证通过
+- 两个坑：① Scapy 未指定 iface 会发到 Wi-Fi/虚拟网卡；② 混杂模式收杂包会被误判为 MIRP（topic=256），靠 ValidMirp 四项校验挡住
+- 已知噪音：笔记本 VPN/ICS 桥接会把 Wi-Fi 侧 IPv4 流量漏到有线口（无害）
+
