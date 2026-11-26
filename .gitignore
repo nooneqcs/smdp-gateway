@@ -1,12 +1,13 @@
-build/
-*.o
-*.pcap
+*.bin
 flow/
-bench.out
-perf.data*
-PROGRESS.md
-
-# 构建产物
-dpdk_mirp_v9
-dpdk_mirp_v10
-bench/vint/vint_mask10
+decode_bench
+enc_bench*
+fast*_bench
+replay_bench
+enc_probe*
+enc_fixed
+memcpy_bench
+dump_rec
+simnow_recorder
+ptp_probe
+rx_ts
