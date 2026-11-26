@@ -12,3 +12,4 @@ simnow_recorder
 ptp_probe
 rx_ts
 *.pcap
+*.bak
