@@ -82,3 +82,17 @@ fast3(两级精确) 198 / fast4(单分支4B) 229 / fast5(无分支直写) 137
   pcap 1.78MB；帧头 01:00:5e:00:00:01、192.168.99.1:40000 -> 239.0.0.1:1001，
   UDP 载荷 34-36 B 随 VInt 长度变化
 - 下一步（需网卡）：换 -a 0000:01:00.0 真发，收端 rx_burst → 解帧 → 解码
+
+## 2026-11-26 CTP 官方 API vs 自写解析：成本拆解
+测量方法：perf stat 全进程 + rdtsc 打点回调
+1) 官方 API 常驻开销：2.60G cycles/60s（0 tick 空载）≈ 43M cycles/s ≈ 单核 1.4%；
+   context-switches 108k/60s ≈ 1800/s；user 0.09s vs sys 1.60s（内核网络栈为主）
+   —— 收到 353 ticks 时 cycles 与空载差异在 ±1% 噪声内，per-tick 增量不可测
+2) 回调内处理成本（我们自己的代码）：
+   - 含 sscanf("%d:%d:%d")：avg 2941 / min 681 / max 18788 cycles
+   - 改手写 ASCII 解析后：avg 157.2 / min 37 / max 549 cycles（≈52 ns）
+   => sscanf 单项占 19 倍，且是 max 异常的主要来源
+3) 对比自写 MIRP：解码 108 cycles/pkt、编码 27 ns/pkt（真实行情）
+结论：CTP 官方 API 的每 tick 处理成本（157 cycles）与自写解析同量级，
+      "官方 API 慢" 在 per-tick 不成立；成本在常驻线程唤醒与内核交互，
+      低延迟优化的重点是绕开内核/减少唤醒/避免慢库函数，而非重写解析。
