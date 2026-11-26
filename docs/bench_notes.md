@@ -73,3 +73,12 @@ fast3(两级精确) 198 / fast4(单分支4B) 229 / fast5(无分支直写) 137
    基准必须用真实分布，否则口径失真；
 2) 字段语义（Change vs 绝对值）直接影响报文长度与 store 次数，属协议理解而非优化技巧。
 对比合成 7 域 77B：45.3 ns。真实 4 域 39.9B：27.0 ns（域数少、字节少、但每字节略贵）。
+
+## 2026-11-26 P3 帧封装与发送路径（软件级验证完成）
+- wire_frame.h：BuildUdpFrame（Ethernet14 + IPv4 + UDP，可选 VLAN tag）+ ParseUdpFrame
+- wire_test：真实行情 908 条，帧往返 ALL PASS、VLAN ALL PASS、截断被拒、
+  接收端（解帧→遍历域→解码）head 校验 OK；开销 42 B
+- wire_tx：DPDK 发送路径，用 --vdev=net_pcap0 验证，sent=18160 failed=0，
+  pcap 1.78MB；帧头 01:00:5e:00:00:01、192.168.99.1:40000 -> 239.0.0.1:1001，
+  UDP 载荷 34-36 B 随 VInt 长度变化
+- 下一步（需网卡）：换 -a 0000:01:00.0 真发，收端 rx_burst → 解帧 → 解码
