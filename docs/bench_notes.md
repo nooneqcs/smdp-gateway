@@ -14,3 +14,16 @@
 - 24B 头成本约 0.6 ns
 - 口径：L1/L2 热、-O3 -march=native、governor=performance、单线程
 - 可选优化：PutVInt 由逐字节循环改 8 字节单写，预计 45→20 ns（未做）
+
+## 2026-11-26 P2 编码优化：四种实现对比（定案）
+最终采用 fast1（逐字节 while 循环 + caller buffer）：
+- body 45.3 ns / 22.1 Mpps / 77 B / 7 域 / 0.59 ns/字节
+- full 45.9 ns（24B 头约 0.6 ns）
+对比（同数据、governor=performance、3000 MHz）：
+- vector push_back 接口 180 ns（140 ns 为容器开销）
+- 无分支 8 字节整写 266 ns
+- 两级分支 2/3 字节精确写 198 ns
+- 单分支 4 字节整写 229 ns
+结论：宽存储重叠 + 不可预测长度分支是主要惩罚；最朴素的字节循环最快（4~6×）。
+按字节：编码 0.59 ns/B vs MIRP 解码 0.64 ns/B（35.87/56B/4域），同量级。
+正确性：15 用例 byte-identical（含 INT64_MIN/MAX、VInt 127/128/16383/16384）。
