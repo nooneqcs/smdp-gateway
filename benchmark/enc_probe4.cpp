@@ -29,7 +29,7 @@ int main()
         for (size_t i = 0; i < N; ++i) {
             uint8_t* p = buf;
             for (int k = 0; k < 76; ++k) *p++ = (uint8_t)(k + i);
-            asm volatile("" ::: "memory");
+            asm volatile("" :: "r"(buf) : "memory");
             g_sink += buf[0];
         }
         t1 = now_ns(); printf("[76 x 1B     ] %.2f ns\n", (double)(t1 - t0) / N);
@@ -38,7 +38,7 @@ int main()
         for (size_t i = 0; i < N; ++i) {
             uint16_t* p = (uint16_t*)buf;
             for (int k = 0; k < 38; ++k) p[k] = (uint16_t)(k + i);
-            asm volatile("" ::: "memory");
+            asm volatile("" :: "r"(buf) : "memory");
             g_sink += buf[0];
         }
         t1 = now_ns(); printf("[38 x 2B     ] %.2f ns\n", (double)(t1 - t0) / N);
@@ -47,7 +47,7 @@ int main()
         for (size_t i = 0; i < N; ++i) {
             uint32_t* p = (uint32_t*)buf;
             for (int k = 0; k < 19; ++k) p[k] = (uint32_t)(k + i);
-            asm volatile("" ::: "memory");
+            asm volatile("" :: "r"(buf) : "memory");
             g_sink += buf[0];
         }
         t1 = now_ns(); printf("[19 x 4B     ] %.2f ns\n", (double)(t1 - t0) / N);
@@ -56,7 +56,7 @@ int main()
         for (size_t i = 0; i < N; ++i) {
             uint8_t* p = buf;
             for (int k = 0; k < 19; ++k) p = fastenc::PutVInt(p, 300);
-            asm volatile("" ::: "memory");
+            asm volatile("" :: "r"(buf) : "memory");
             g_sink += buf[0];
         }
         t1 = now_ns(); printf("[19 VInt 常量] %.2f ns\n", (double)(t1 - t0) / N);
@@ -75,7 +75,7 @@ int main()
             p = fastenc::PutVInt(p, 10 + (int)(i % 50));
             p = fastenc::PutVInt(p, (int64_t)(10 + i % 50) * 3800000);
             p = fastenc::PutVInt(p, (int)(i % 400) - 200);
-            asm volatile("" ::: "memory");
+            asm volatile("" :: "r"(buf) : "memory");
             g_sink += buf[0];
         }
         t1 = now_ns(); printf("[19 VInt 真实] %.2f ns\n", (double)(t1 - t0) / N);
@@ -83,7 +83,7 @@ int main()
         t0 = now_ns();
         for (size_t i = 0; i < N; ++i) {
             fastenc::EncodeBodyFast(buf, tk);
-            asm volatile("" ::: "memory");
+            asm volatile("" :: "r"(buf) : "memory");
             g_sink += buf[0];
         }
         t1 = now_ns(); printf("[f1 body     ] %.2f ns\n", (double)(t1 - t0) / N);
