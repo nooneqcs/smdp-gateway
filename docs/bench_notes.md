@@ -60,3 +60,16 @@ fast3(两级精确) 198 / fast4(单分支4B) 229 / fast5(无分支直写) 137
  2) 性能上无必要：45.3 ns = 22.1 Mpps，是真实行情峰值的 20 倍以上；
  3) 定长 12.6 ns / struct-on-wire 1.86 ns 的数据已记录，作为架构选型依据备查。
 后续：若做下游分发层（Q2），采用 64B 内部结构（SimTickC 草案）直传，不经过编码。
+
+## 2026-11-26 P2 真实行情回放编码（SimNow 908 条，4 合约）
+数据源：SimNow CTP 行情落盘 ticks_simnow.bin（au2702/ag2702/cu2701/rb2701，120s）
+校验：ts_backwards=0、zeroBidVol=0、roundtrip ALL PASS
+三版演进（body，4 域：0x0003 + 0x1001×2 + 0x1002）：
+- v1 绝对价位×10000：48.7 B / 33.4 ns / 30.0 Mpps
+- v2 基准价偏移（CodecPrice 本意）：43.5 B / 29.3 ns / 34.1 Mpps
+- v3 语义修正：Turnover 不×10000、OpenInterest 传变化量：39.9 B / 27.0 ns / 37.0 Mpps
+结论：
+1) 合成数据会低估 VInt 长度（造的数据 offset 仅 2B，真实价位 8 位→4B），
+   基准必须用真实分布，否则口径失真；
+2) 字段语义（Change vs 绝对值）直接影响报文长度与 store 次数，属协议理解而非优化技巧。
+对比合成 7 域 77B：45.3 ns。真实 4 域 39.9B：27.0 ns（域数少、字节少、但每字节略贵）。
