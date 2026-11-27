@@ -21,3 +21,10 @@
 - 覆盖率和理论吻合：667ns/1.05µs≈63.5% vs 实测 61%
 - 对照全速 18.09M/s：coverage 0.8%（过载假象，证明写端不为读端让路，非缺陷）
 - 结论：行情→策略用最新值快照，策略慢自动跳过、只取最新、不阻塞行情核；读到的 tick 零撕裂
+
+## 2026-11-27 demo_trade5：seqlock 快照接交易链，与 demo_trade4 等价
+- 结构：行情线程(CPU2) bin→compress→publish；策略线程(CPU3) latest→原strategy→match_mkt→on_fill→账本
+- RATE=5000：decoded=18160 orders=18160 fills=18160 realized=-90800.0 unrealized=0.0，与 demo_trade4 一字不差
+- 结论：SPSC队列→seqlock快照，交易语义与账本完全等价
+- 必要条件：绑核(CPU2/CPU3)。不绑核 OS 抢占策略线程>tick间隔，快照覆盖中间tick导致漏单(实测18157~18159波动)
+- 启动边界：ready握手(strat seed后置位, prod等待)才从seq=0读起；不握手会跳seq=0(快照启动不补历史)
