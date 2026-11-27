@@ -28,3 +28,11 @@
 - 结论：SPSC队列→seqlock快照，交易语义与账本完全等价
 - 必要条件：绑核(CPU2/CPU3)。不绑核 OS 抢占策略线程>tick间隔，快照覆盖中间tick导致漏单(实测18157~18159波动)
 - 启动边界：ready握手(strat seed后置位, prod等待)才从seq=0读起；不握手会跳seq=0(快照启动不补历史)
+
+## 2026-11-27 SMDP 快照合并三原语验证（官方 al1201 / 成交示例）
+- apply_level: EventType '1'增/'2'改/'3'删, MDEntryType '0'买/'1'卖（ASCII 字符非数字）, 1-based 档位
+  价格 Price = CodecPrice + PriceOffset*PriceTick（18000+20*5=18100 对上）
+- apply_trade: Turnover += (VolumeChange*CodecPrice + TurnoverOffset*PriceTick)*VolumeMultiple
+  官方示例 Volume 4->8、Turnover 360000->721000、OI 1000->1004->1008 全对上
+- apply_head: ChangeNo 连号 gaps=0、跳号(4->7) gaps=1
+- 三个原语均用《SMDP2.0 编解码示例 v1.12》逐行验证
