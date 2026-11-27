@@ -211,11 +211,15 @@ int main(int argc,char**argv){
                     if(topic<0){ topic=h.TopicID; printf("[first] topic=%d Length=%u\n",(int)h.TopicID,(unsigned)h.Length); }
                     IterateDomainsT(mirp+24,h.Length,mv);
                     ++pkts;
-                    int64_t ino=mv.LastIno();
-                    auto& st=store.Get(ino);
-                    Tick t; t.ino=ino; t.bid=st.book.Bid[0].Price; t.ask=st.book.Ask[0].Price; t.t_prod=rte_rdtsc_precise();
-                    if(big) batch[bn++]=t;
-                    else { if(g_q.push(t)) total_enq++; else g_dropped++; }
+                    for(int64_t ino : mv.Touched()){
+                        auto& st=store.Get(ino);
+                        Tick t; t.ino=ino; t.bid=st.book.Bid[0].Price; t.ask=st.book.Ask[0].Price; t.t_prod=rte_rdtsc_precise();
+                        if(big){
+                            batch[bn++]=t;
+                            if(bn==BURST){ size_t put=g_q.push_bulk(batch,BURST); total_enq+=put; if(put<BURST) g_dropped+=(BURST-put); bn=0; }
+                        } else { if(g_q.push(t)) total_enq++; else g_dropped++; }
+                    }
+                    mv.ClearTouched();
                 }
             }
             if(!big) rte_pktmbuf_free(mb[i]);
