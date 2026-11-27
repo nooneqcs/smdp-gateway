@@ -5,7 +5,7 @@ namespace smdp {
 void MarketVisitor::OnDomain(const DomainRef& d) {
     const int16_t fid = d.FieldID;
 
-    if (fid == 0x1001) {                         // 最常见
+    if (fid == 0x1001) {
         PriceLevelDelta ev;
         if (cur_ && DecodePriceLevelDelta(d, ev) >= 0)
             cur_->book.ApplyDelta(ev, cur_->info.CodecPrice, cur_->info.PriceTick);
@@ -17,14 +17,17 @@ void MarketVisitor::OnDomain(const DomainRef& d) {
             cur_->trade.LastPrice     = cur_->info.CodecPrice + (double)ts.LastPriceOffset * cur_->info.PriceTick;
             cur_->trade.Volume       += (int32_t)ts.VolumeChange;
             cur_->trade.OpenInterest += (double)ts.OpenInterestChange;
+            cur_->trade.Turnover     += ((double)ts.VolumeChange * cur_->info.CodecPrice
+                                       + (double)ts.TurnoverOffset * cur_->info.PriceTick) * cur_->info.VolumeMultiple;
         }
         return;
     }
     if (fid == 0x0003) {
         ContractDeltaHead h;
-        if (DecodeContractHead(d, h) >= 0 && (!cur_ || h.InstrumentNo != cur_ino_)) {
-            cur_ino_ = h.InstrumentNo;
-            cur_ = &store_.Get(cur_ino_);
+        if (DecodeContractHead(d, h) >= 0) {
+            if (!cur_ || h.InstrumentNo != cur_ino_) { cur_ino_ = h.InstrumentNo; cur_ = &store_.Get(cur_ino_); }
+            if (cur_->last_change_no != 0 && h.ChangeNo != cur_->last_change_no + 1) ++cur_->gaps;
+            cur_->last_change_no = h.ChangeNo;
         }
         return;
     }

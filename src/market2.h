@@ -11,6 +11,8 @@ struct ContractState {
     ContractInfo    info{};
     TradeMarketData trade{};
     Book            book{};
+    int64_t         last_change_no = 0;
+    uint32_t        gaps           = 0;
 };
 
 class MarketStore {
