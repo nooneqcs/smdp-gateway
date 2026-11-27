@@ -64,14 +64,14 @@ inline size_t EncodeReal(uint8_t* out, const RealRec& r)
     p = fastenc::EndDomain(p, sz);
 
     p = fastenc::BeginDomain(p, 0x1001, &sz);
-    *p++ = 0; *p++ = 0;
+    *p++ = '2'; *p++ = '0';
     p = fastenc::PutVInt(p, 1);
     p = fastenc::PutVInt(p, r.bidOff);
     p = fastenc::PutVInt(p, r.bidVol);
     p = fastenc::EndDomain(p, sz);
 
     p = fastenc::BeginDomain(p, 0x1001, &sz);
-    *p++ = 0; *p++ = 1;
+    *p++ = '2'; *p++ = '1';
     p = fastenc::PutVInt(p, 1);
     p = fastenc::PutVInt(p, r.askOff);
     p = fastenc::PutVInt(p, r.askVol);

@@ -16,6 +16,7 @@
 #include <rte_version.h>
 #include "mirp.h"
 #include "market2.h"
+#include "trade_hook3.h"
 
 #define POOL_N 16384
 #define RING   1024
@@ -72,9 +73,10 @@ static int consumer_main(void*){
             if(g_record.load(std::memory_order_relaxed) && g_nlat<MAXLAT)
                 g_lat[g_nlat++]=rte_rdtsc_precise()-t.t_prod;
             g_consumed++;
+            trade_on_tick(t);
         }
     }
-    while(g_q.pop(t)) g_consumed++;
+    while(g_q.pop(t)){ g_consumed++; trade_on_tick(t); }
     return 0;
 }
 
@@ -192,11 +194,24 @@ int main(int argc,char**argv){
     for(;;){
         struct rte_mbuf*mb[BURST];
         uint16_t nb=rte_eth_rx_burst(0,0,mb,BURST);
-        { static double tlast=0; double nw=(double)rte_rdtsc_precise()/hz;
-          if(nw-tlast>=1.0){ struct rte_eth_stats st; rte_eth_stats_get(0,&st);
-            printf("[mon] t=%.0fs 解出=%llu 入队=%llu 丢弃=%llu\n",nw-t0,
-                   (unsigned long long)pkts,(unsigned long long)total_enq,(unsigned long long)g_dropped);
-            tlast=nw; } }
+
+        /* ---- 监控：收/解出/入队/丢弃 + NIC 统计 ---- */
+        {   static unsigned long long total_rx = 0; total_rx += nb;
+            static double tlast = 0;
+            double nw = (double)rte_rdtsc_precise()/hz;
+            if (nw - tlast >= 1.0) {
+                struct rte_eth_stats st; rte_eth_stats_get(0, &st);
+                printf("[mon] t=%.0fs 收=%llu 解出=%llu 入队=%llu 丢弃=%llu | nic rx=%llu miss=%llu err=%llu\n",
+                       nw-t0, (unsigned long long)total_rx,
+                       (unsigned long long)pkts, (unsigned long long)total_enq,
+                       (unsigned long long)g_dropped,
+                       (unsigned long long)st.ipackets,
+                       (unsigned long long)st.imissed,
+                       (unsigned long long)st.ierrors);
+                tlast = nw;
+            }
+        }
+
         if(nb==0){ if((double)rte_rdtsc_precise()/hz>t_end) break; continue; }
 
         uint64_t t_rx=rte_rdtsc_precise();
@@ -262,4 +277,3 @@ int main(int argc,char**argv){
     }
     return 0;
 }
-

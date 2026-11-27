@@ -11,6 +11,8 @@ struct ContractState {
     ContractInfo    info{};      // 含 CodecPrice / PriceTick
     TradeMarketData trade{};
     Book            book{};
+    int64_t         last_change_no = 0;
+    uint32_t        gaps           = 0;
 };
 
 class MarketStore {
@@ -21,7 +23,6 @@ private:
     std::unordered_map<int64_t, ContractState> m_;
 };
 
-// 报文级分派：遍历域，0x0003 切换当前合约，其余域应用到该合约
 class MarketVisitor : public DomainVisitor {
 public:
     explicit MarketVisitor(MarketStore& s) : store_(s) {}
@@ -33,3 +34,4 @@ private:
 };
 
 } // namespace smdp
+

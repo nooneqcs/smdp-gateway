@@ -25,7 +25,7 @@ void MarketVisitor::OnDomain(const DomainRef& d) {
     if (fid == 0x0003) {
         ContractDeltaHead h;
         if (DecodeContractHead(d, h) >= 0) {
-            if (!cur_ || h.InstrumentNo != cur_ino_) {
+            {
                 cur_ino_ = h.InstrumentNo;
                 cur_ = &store_.Get(cur_ino_);
                 touched_.push_back(cur_ino_);
