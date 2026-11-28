@@ -145,3 +145,24 @@ p99=≈400: 未隔离核 OS 中断/调度抖动, 非链属性, 不作为对外�
   软件层已压尽(预触/缩数组/去realloc/mlockall/预建表); 再降只能 isolcpus=2 nohz_full=2 rcu_nocbs=2 (未做)
 口径声明: 纯软件 = 硬件无关、柜台无关的纯CPU链; 不含收发包(硬件)/回报(柜台). 第9步 tx 属硬件侧.
 失效: 绑核+chrt 组更飘(Bnet 211–278); i210 lpbk_mode 不支持(rx=0)
+
+## 2026-11-28 ★重点★ v43 专用单遍 parser：L1 纯软件发单链 C=124（较基线 260 降 52%）
+环境: 100pps, veth(net_af_packet), 单核(不绑), 未隔离, need=2000, 每包1单, 3.0GHz 锁频(turbo off)
+净 = 测 − rdtsc 对开销(≈25.5). p50 only.
+v43 架构改动:
+  - 弃用 MarketVisitor/IterateDomainsT/DomainRef/Decode*；自写 parse_body 单遍:
+      域头 = fid(uint16 LE) + size(uint16 LE) + body; VInt = zigzag + LEB128(GetVInt)
+  - Hot 热行 56B/合约(codec,tick,bidOff,askOff,lastOff,cn,gaps,seen); 价格存 tick 整数偏移,
+      决策时才转 double; 跳过 Book::ApplyDelta、不碰 ContractState
+  - 0x0101 直接按偏移取(92 PriceTick / 100 CodecPrice / 108 InstrumentNo)
+  - 报单帧模板化: 预建 98B, 每单 patch Ref/Ino/Px/Vol/Side 五字段(替 BuildUdpFrame 整帧重造)
+  - keep-warm: 空闲跑手搭 32B 合法 body, 48 轮, 用独立 g_whot 不污染真实状态
+  - 尾部: mlockall; g_otab/g_hot 预触; timer 数组 need+4096; seg vector reserve 2*need
+结果(三轮, 净 p50/p99 ns):
+  C(rx→订单进buf, 不含free): p50 111.8/123.7/139.8 (中位 123.7); p99 266/338/334 (中位~334)
+  B(含free):                p50 143.1/152.4/167.8 (中位 152.4)
+  S(建单+状态):              p50 12–23
+优化链(中位 p50): 260(v37基) → 225(v40 模板编码 −13%) → 211(v41 +keep-warm −6%)
+                                    → 197(v42 热行 −7%) → 124(v43 单遍parser −37%)  总 −52%
+残余: 解析 ≈60–70; 其余 D(决策+建单+风控+alloc) + E(模板编码); p99 仍 OS-bound(未隔离)
+下一步(未做): 预分配 mbuf 环形池(v44), 目标 100–110
