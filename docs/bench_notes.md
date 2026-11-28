@@ -326,3 +326,12 @@ v43 架构改动:
 - [S] p99 出现 61–70 µs 离群（FIFO 99 + 独占核）→ 尾源为固件/SMM 或内核 veth 路径，非 OS 调度
 - 判定：p99 3.2 µs 为该软件路径下限；isolcpus 无收益，已回滚
 - 对外口径：稀疏 100pps 单包 p50 134 ns / p99 3.2 µs（默认核，未隔离）
+
+## 2026-11-28 收包侧软件手段穷尽（p99 定稿：压不动）
+- 三项全试，均对 p99 无效：
+  1) 全 IRQ 搬 0-1 + irqbalance 停/disable/pkill → p99 3.27 µs 不变（核 2 仅剩 nvme0q3，计数 0）
+  2) isolcpus=2 nohz_full=2 rcu_nocbs=2 + chrt -f 99 → p99 3.60 µs、p50 153，负收益已回滚
+  3) sender taskset -c 3（原 core0）→ p50 中位 149.1（130.5–172.1）、p99 3.44 µs，无改善
+- 机理：t_pkt 在 rte_eth_rx_burst 返回后取 → 收包耗时不计入 [C]；p99 尾巴是处理窗口内的固件 SMM/内核 IPI
+- 对照：同 decode 在 hot_bench 紧循环 p99 197.5 ns、dense 回放 p99 0.42–0.51 µs → 差额全在到达/内核路径
+- 定稿配置：p99.sh（sender core0）；p50 139.1 ns（后四轮 131.1–143.1，首轮 187.5 冷启动剔除）/ p99 3.27 µs
